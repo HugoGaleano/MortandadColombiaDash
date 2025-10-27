@@ -1,0 +1,24 @@
+body {
+  background: #fff8f6 !important;
+  font-family: "Montserrat", Arial, Helvetica, sans-serif !important;
+}
+.sidebar-menu {
+  background: #fff;
+  border: 1px solid #f5bdbd;
+  border-radius: 12px;
+  padding: 1.6rem 1.2rem;
+  box-shadow: 0 4px 14px rgba(229,115,115,0.10);
+  margin-bottom:1.5rem;
+}
+.content-card {
+  background: #fff;
+  border: 1px solid #f5bdbd;
+  border-radius: 15px;
+  padding: 1.6rem 1.1rem 1.1rem 1.25rem;
+  box-shadow: 0 4px 13px rgba(229,115,115,0.11);
+  margin-bottom:1.4rem;
+}
+@media (max-width: 768px) {
+  .sidebar-menu { margin-bottom: 2rem; }
+  .main-header h1 { font-size: 1.3rem !important;}
+}
