@@ -75,6 +75,21 @@ df_completo = df_completo[["DEPARTAMENTO", "MUERTES"]]
 anexo2 = pd.read_excel('data/Anexo2.CodigosDeMuerte_CE_15-03-23.xlsx', header=8)
 anexo2.columns = anexo2.columns.str.strip()
 
+# Diccionario de grupos de edad a categorías y etiquetas según tabla dada
+grupos_edad_map = {
+    **dict.fromkeys([0,1,2,3,4], 'Mortalidad neonatal'),
+    **dict.fromkeys([5,6], 'Mortalidad infantil'),
+    **dict.fromkeys([7,8], 'Primera infancia'),
+    **dict.fromkeys([9,10], 'Niñez'),
+    11: 'Adolescencia',
+    **dict.fromkeys([12,13], 'Juventud'),
+    **dict.fromkeys([14,15,16], 'Adultez temprana'),
+    **dict.fromkeys([17,18,19], 'Adultez intermedia'),
+    **dict.fromkeys([20,21,22,23,24], 'Vejez'),
+    **dict.fromkeys([25,26,27,28], 'Longevidad / Centenarios'),
+    29: 'Edad desconocida'
+}
+
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server = app.server
 
@@ -92,7 +107,8 @@ app.layout = dbc.Container([
                     {'label': 'Top 5 ciudades violentas', 'value': 'barras_violencia'},
                     {'label': '10 ciudades menor mortalidad', 'value': 'circular'},
                     {'label': 'Top 10 causas de muerte (tabla)', 'value': 'top_causas'},
-                    {'label': 'Muertes por sexo y departamento', 'value': 'sexo_dep'}
+                    {'label': 'Muertes por sexo y departamento', 'value': 'sexo_dep'},
+                    {'label': 'Histograma mortalidad (grupo edad)', 'value': 'hist_edad'}
                 ],
                 value='mapa',
                 labelStyle={'display': 'block'}
@@ -202,7 +218,6 @@ def render_vista_grafico(grafico, umbral):
         )
         return dcc.Graph(figure=fig)
     elif grafico == 'sexo_dep':
-        # Crear gráfico de barras apiladas por sexo y departamento
         mortalidad_sexo_dep = (mortalidad
             .merge(divipola[['COD_DEPARTAMENTO', 'DEPARTAMENTO']], left_on='COD_DEPARTAMENTO', right_on='COD_DEPARTAMENTO', how='left'))
         sexo_map = {1: 'Masculino', 2: 'Femenino'}
@@ -224,6 +239,30 @@ def render_vista_grafico(grafico, umbral):
             color_discrete_map={'Masculino':'#4B77BE', 'Femenino':'#E08283'}
         )
         fig.update_layout(xaxis_tickangle=45, xaxis_title=None)
+        return dcc.Graph(figure=fig)
+    elif grafico == 'hist_edad':
+        # Mapea GRUPO_EDAD1 a rango/categoría
+        edades = mortalidad['GRUPO_EDAD1'].map(grupos_edad_map)
+        df_edades = edades.value_counts().reset_index()
+        df_edades.columns = ['Grupo de Edad', 'Muertes']
+        df_edades = df_edades[df_edades['Grupo de Edad'].notnull()]
+        # Ordenar categorías según sentido cronológico del ciclo de vida
+        orden = [
+            'Mortalidad neonatal', 'Mortalidad infantil', 'Primera infancia', 'Niñez', 'Adolescencia',
+            'Juventud', 'Adultez temprana', 'Adultez intermedia', 'Vejez', 'Longevidad / Centenarios', 'Edad desconocida'
+        ]
+        df_edades['Grupo de Edad'] = pd.Categorical(df_edades['Grupo de Edad'], categories=orden, ordered=True)
+        df_edades = df_edades.sort_values('Grupo de Edad')
+        fig = px.bar(
+            df_edades,
+            x='Grupo de Edad',
+            y='Muertes',
+            title='Distribución de muertes por grupos de edad',
+            text_auto=True,
+            labels={'Muertes': 'Total de muertes', 'Grupo de Edad': 'Categoría edad/rango'}
+        )
+        fig.update_traces(marker_color='#8CC63F')
+        fig.update_layout(xaxis_tickangle=30)
         return dcc.Graph(figure=fig)
     elif grafico == 'top_causas':
         mortalidad['COD3'] = mortalidad['COD_MUERTE'].astype(str).str[:3]
