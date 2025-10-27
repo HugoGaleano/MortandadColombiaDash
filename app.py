@@ -91,7 +91,8 @@ app.layout = dbc.Container([
                     {'label': 'Muertes por mes (línea)', 'value': 'linea'},
                     {'label': 'Top 5 ciudades violentas', 'value': 'barras_violencia'},
                     {'label': '10 ciudades menor mortalidad', 'value': 'circular'},
-                    {'label': 'Top 10 causas de muerte (tabla)', 'value': 'top_causas'}
+                    {'label': 'Top 10 causas de muerte (tabla)', 'value': 'top_causas'},
+                    {'label': 'Muertes por sexo y departamento', 'value': 'sexo_dep'}
                 ],
                 value='mapa',
                 labelStyle={'display': 'block'}
@@ -200,8 +201,31 @@ def render_vista_grafico(grafico, umbral):
             color_discrete_sequence=px.colors.sequential.Blues
         )
         return dcc.Graph(figure=fig)
+    elif grafico == 'sexo_dep':
+        # Crear gráfico de barras apiladas por sexo y departamento
+        mortalidad_sexo_dep = (mortalidad
+            .merge(divipola[['COD_DEPARTAMENTO', 'DEPARTAMENTO']], left_on='COD_DEPARTAMENTO', right_on='COD_DEPARTAMENTO', how='left'))
+        sexo_map = {1: 'Masculino', 2: 'Femenino'}
+        mortalidad_sexo_dep['SEXO_NOMBRE'] = mortalidad_sexo_dep['SEXO'].map(sexo_map)
+        df_plot = (
+            mortalidad_sexo_dep
+            .groupby(['DEPARTAMENTO', 'SEXO_NOMBRE'])
+            .size()
+            .reset_index(name='MUERTES')
+        )
+        fig = px.bar(
+            df_plot,
+            x='DEPARTAMENTO',
+            y='MUERTES',
+            color='SEXO_NOMBRE',
+            title='Muertes por sexo en cada departamento (2019)',
+            labels={'DEPARTAMENTO': 'Departamento', 'MUERTES': 'Muertes', 'SEXO_NOMBRE': 'Sexo'},
+            barmode='stack',
+            color_discrete_map={'Masculino':'#4B77BE', 'Femenino':'#E08283'}
+        )
+        fig.update_layout(xaxis_tickangle=45, xaxis_title=None)
+        return dcc.Graph(figure=fig)
     elif grafico == 'top_causas':
-        # Extrae ambos códigos (3 y 4 caracteres)
         mortalidad['COD3'] = mortalidad['COD_MUERTE'].astype(str).str[:3]
         mortalidad['COD4'] = mortalidad['COD_MUERTE'].astype(str).str[:4]
         top_causas = (
@@ -210,12 +234,10 @@ def render_vista_grafico(grafico, umbral):
             .sort_values(by='TOTAL', ascending=False)
             .head(10)
         )
-        # Merge con catálogo 4 caracteres
         tabla_10 = top_causas.merge(
             anexo2[['Código de la CIE-10 cuatro caracteres', 'Descripcion  de códigos mortalidad a cuatro caracteres']],
             left_on='COD4', right_on='Código de la CIE-10 cuatro caracteres', how='left'
         )
-        # Si no encuentra descripción de 4, busca la de 3
         tabla_10['Nombre de causa'] = tabla_10['Descripcion  de códigos mortalidad a cuatro caracteres']
         faltantes = tabla_10['Nombre de causa'].isnull()
         if faltantes.any():
