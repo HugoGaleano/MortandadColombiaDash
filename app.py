@@ -148,5 +148,5 @@ def actualizar_contenido(viz, slider_value, input_value):
 if __name__ == "__main__":
     # Detecta el puerto que Render le asigna automáticamente a la app
     port = int(os.environ.get("PORT", 8050))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=False)
 
