@@ -145,4 +145,7 @@ def actualizar_contenido(viz, slider_value, input_value):
     return html.Div("Seleccione una visualización."), 2, 2, ""
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Detecta el puerto que Render le asigna automáticamente a la app
+    port = int(os.environ.get("PORT", 8050))
+    app.run(host="0.0.0.0", port=port, debug=True)
+
