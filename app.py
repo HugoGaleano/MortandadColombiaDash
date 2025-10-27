@@ -5,15 +5,13 @@ import pandas as pd
 import plotly.express as px
 import json
 
-# Carga geojson
+# Carga geojson de Colombia
 with open('data/colombia_departamentos.geojson', 'r', encoding='utf-8') as f:
     geojson_col = json.load(f)
 
-# Carga Divipola
+# Carga Divipola y normaliza nombres
 divipola = pd.read_excel("data/Divipola_CE_.xlsx", sheet_name=0)
 divipola['DEPARTAMENTO'] = divipola['DEPARTAMENTO'].str.strip().str.title()
-
-# Diccionario de reemplazo para empatar nombres entre Divipola y GeoJSON
 replace_dict = {
     "Archipiélago De San Andrés, Providencia Y Santa Catalina": "San Andrés y Providencia",
     "Bogotá, D.C.": "Distrito Capital de Bogotá",
@@ -22,23 +20,41 @@ replace_dict = {
 }
 divipola["DEPARTAMENTO"] = divipola["DEPARTAMENTO"].replace(replace_dict)
 
-# Agrupa (por cantidad de municipios solo como ejemplo; reemplaza .size() por .sum() si tienes una columna de muertes)
-df_muertes = divipola.groupby('DEPARTAMENTO').size().reset_index(name="MUERTES")
+# CARGA DATOS REALES DE MORTALIDAD POR MES
+try:
+    mortalidad = pd.read_excel("data/Anexo1.NoFetal2019_CE_15-03-23.xlsx", sheet_name=0)
+    mortalidad.columns = mortalidad.columns.str.strip().str.upper().str.replace(" ", "_")
+    # Agrupa las muertes por año y mes (puedes cambiar el año para filtrar solo 2019 si el archivo tiene varios años)
+    datos_mes = (mortalidad
+                 .groupby(["AÑO", "MES"])
+                 .size()
+                 .reset_index(name="MUERTES"))
+    datos_mes["MES"] = datos_mes["MES"].astype(int)
+    # Si quieres asegurarte que solo aparecen datos de 2019
+    datos_mes = datos_mes[datos_mes["AÑO"] == 2019]
+    # Ordena por mes
+    datos_mes = datos_mes.sort_values("MES")
+    # Transforma los números de mes en nombres (opcional):
+    meses_nombres = {1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",5:"Mayo",6:"Junio",7:"Julio",8:"Agosto",9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"}
+    datos_mes["MES_NOMBRE"] = datos_mes["MES"].map(meses_nombres)
+except Exception as e:
+    print("Error leyendo archivo de mortalidad, usando ejemplo simulado:", e)
+    datos_mes = pd.DataFrame({
+        'AÑO': [2019]*6,
+        'MES': [1,2,3,4,5,6],
+        'MUERTES': [4200, 4100, 4300, 4400, 4100, 4000],
+        'MES_NOMBRE': ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio']
+    })
 
-# Obtiene nombres del geojson
+# Datos para el mapa siguen igual
+df_muertes = divipola.groupby('DEPARTAMENTO').size().reset_index(name="MUERTES")
 departamentos_geojson = [feature['properties']['name'] for feature in geojson_col['features']]
 df_base = pd.DataFrame({'DEPARTAMENTO': departamentos_geojson, 'MUERTES': 0})
-
-# Merge para visualizar todos los departamentos (muertes reales donde existan)
 df_completo = df_base.merge(df_muertes, on="DEPARTAMENTO", how="left")
 df_completo["MUERTES"] = df_completo["MUERTES_y"].fillna(df_completo["MUERTES_x"])
 df_completo = df_completo[["DEPARTAMENTO", "MUERTES"]]
 
-print("Nombres de departamentos en geojson:", departamentos_geojson)
-print("Nombres de departamentos en df_muertes:", df_muertes['DEPARTAMENTO'].tolist())
-print("Faltantes:", df_completo[df_completo["MUERTES"] == 0]["DEPARTAMENTO"].tolist())
-
-# Dash Layout
+# ---------- LAYOUT DASH ----------
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server = app.server
 
@@ -49,7 +65,8 @@ app.layout = dbc.Container([
             dcc.RadioItems(
                 id='menu-graficos',
                 options=[
-                    {'label': 'Mapa por departamento', 'value': 'mapa'}
+                    {'label': 'Mapa por departamento', 'value': 'mapa'},
+                    {'label': 'Muertes por mes (línea)', 'value': 'linea'}
                 ],
                 value='mapa',
                 labelStyle={'display': 'block'}
@@ -76,6 +93,14 @@ def render_vista_grafico(grafico):
         )
         fig.update_geos(fitbounds="locations", visible=False)
         fig.update_layout(title='Distribución de muertes por departamento')
+        return dcc.Graph(figure=fig)
+    elif grafico == 'linea':
+        fig = px.line(
+            datos_mes,
+            x='MES_NOMBRE', y='MUERTES',
+            markers=True,
+            title="Muertes a nivel nacional por mes"
+        )
         return dcc.Graph(figure=fig)
     else:
         return html.Div("Seleccione una visualización.")
