@@ -26,29 +26,7 @@ La plataforma permite a investigadores, estudiantes y tomadores de decisión vis
 
 El proyecto está organizado siguiendo una arquitectura modular para facilitar el mantenimiento y escalabilidad del código:
 
-MortandadColombiaDash/
-├── app.py # Aplicación principal Dash con layout y callbacks
-├── requirements.txt # Dependencias y librerías Python
-├── README.md # Documentación del proyecto
-├── .gitignore # Archivos y carpetas excluidos del control de versión
-├── modules/ # Módulos de funcionalidad
-│ ├── loader.py # Carga y procesamiento de datos
-│ └── plots/ # Módulos de visualizaciones
-│ ├── map_departamento.py # Mapa coroplético por departamento
-│ ├── line_muertes_mes.py # Gráfico de evolución mensual
-│ ├── barras_violencia.py # Top municipios con mayor violencia
-│ ├── circular_menor_mortalidad.py # Gráfico circular menor mortalidad
-│ ├── tabla_causas.py # Tabla de principales causas de muerte
-│ ├── barras_sexo_dep.py # Análisis por sexo y departamento
-│ └── hist_edad.py # Distribución por grupos de edad
-├── data/ # Archivos de datos fuente
-│ ├── colombia_departamentos.geojson # Geometrías departamentales
-│ ├── Anexo1.NoFetal2019_CE_15-03-23.xlsx # Datos de mortalidad
-│ ├── Anexo2.CodigosDeMuerte_CE_15-03-23.xlsx # Códigos CIE-10
-│ └── Divipola_CE_.xlsx # División político-administrativa
-└── assets/ # Recursos estáticos
-├── custom.css # Estilos personalizados
-└── screenshots/ # Capturas de pantalla para documentación
+![Estructura del Proyecto](assets/screenshots/estructura_proyecto.png)
 
 ### Descripción de componentes principales
 
