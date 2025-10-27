@@ -1,12 +1,12 @@
 import dash
 from dash import dcc, html
 import dash_bootstrap_components as dbc
+from dash import dash_table
 import pandas as pd
 import plotly.express as px
 import json
 from dash.dependencies import Input, Output, State
 
-# --- CARGA Y PROCESAMIENTO DE DATOS ---
 with open('data/colombia_departamentos.geojson', 'r', encoding='utf-8') as f:
     geojson_col = json.load(f)
 
@@ -72,12 +72,14 @@ df_completo = df_base.merge(df_muertes, on="DEPARTAMENTO", how="left")
 df_completo["MUERTES"] = df_completo["MUERTES_y"].fillna(df_completo["MUERTES_x"])
 df_completo = df_completo[["DEPARTAMENTO", "MUERTES"]]
 
+anexo2 = pd.read_excel('data/Anexo2.CodigosDeMuerte_CE_15-03-23.xlsx', header=8)
+anexo2.columns = anexo2.columns.str.strip()
+
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server = app.server
 
 umbral_pasos = [1, 5000, 10000, 20000, 40000, int(muertes_mun["MUERTES"].max())]
 
-# --- LAYOUT: SIEMPRE EXISTEN LOS CONTROLES DEL SLIDER E INPUT ---
 app.layout = dbc.Container([
     dbc.Row([dbc.Col(html.H2("MortandadColombiaDash - Mortalidad en Colombia 2019"), width=12)], className="mb-4 mt-4"),
     dbc.Row([
@@ -88,12 +90,12 @@ app.layout = dbc.Container([
                     {'label': 'Mapa por departamento', 'value': 'mapa'},
                     {'label': 'Muertes por mes (línea)', 'value': 'linea'},
                     {'label': 'Top 5 ciudades violentas', 'value': 'barras_violencia'},
-                    {'label': '10 ciudades menor mortalidad', 'value': 'circular'}
+                    {'label': '10 ciudades menor mortalidad', 'value': 'circular'},
+                    {'label': 'Top 10 causas de muerte (tabla)', 'value': 'top_causas'}
                 ],
                 value='mapa',
                 labelStyle={'display': 'block'}
             ),
-            # CONTROLES SIEMPRE PRESENTES, inicial ocultos
             html.Div(id='slider-umbral-div', children=[
                 html.Div([
                     html.Label("Umbral mínimo de muertes para municipios:"),
@@ -129,7 +131,6 @@ app.layout = dbc.Container([
     [Input('menu-graficos', 'value')]
 )
 def toggle_circular_controls(grafico):
-    # Solo se muestran controles de circular en la opción circular
     if grafico == 'circular':
         return {'display':'block', "marginTop": "15px"}
     return {'display':'none'}
@@ -199,6 +200,48 @@ def render_vista_grafico(grafico, umbral):
             color_discrete_sequence=px.colors.sequential.Blues
         )
         return dcc.Graph(figure=fig)
+    elif grafico == 'top_causas':
+        # Extrae ambos códigos (3 y 4 caracteres)
+        mortalidad['COD3'] = mortalidad['COD_MUERTE'].astype(str).str[:3]
+        mortalidad['COD4'] = mortalidad['COD_MUERTE'].astype(str).str[:4]
+        top_causas = (
+            mortalidad.groupby(['COD4', 'COD3'])
+            .size().reset_index(name='TOTAL')
+            .sort_values(by='TOTAL', ascending=False)
+            .head(10)
+        )
+        # Merge con catálogo 4 caracteres
+        tabla_10 = top_causas.merge(
+            anexo2[['Código de la CIE-10 cuatro caracteres', 'Descripcion  de códigos mortalidad a cuatro caracteres']],
+            left_on='COD4', right_on='Código de la CIE-10 cuatro caracteres', how='left'
+        )
+        # Si no encuentra descripción de 4, busca la de 3
+        tabla_10['Nombre de causa'] = tabla_10['Descripcion  de códigos mortalidad a cuatro caracteres']
+        faltantes = tabla_10['Nombre de causa'].isnull()
+        if faltantes.any():
+            tabla_10.loc[faltantes, 'Nombre de causa'] = tabla_10.loc[faltantes].merge(
+                anexo2[['Código de la CIE-10 tres caracteres', 'Descripción  de códigos mortalidad a tres caracteres']],
+                left_on='COD3', right_on='Código de la CIE-10 tres caracteres', how='left'
+            )['Descripción  de códigos mortalidad a tres caracteres'].values
+        tabla_10 = tabla_10[['COD4', 'Nombre de causa', 'TOTAL']]
+        tabla_10.rename(columns={'COD4': 'Código CIE-10', 'TOTAL': 'Total de casos'}, inplace=True)
+        return html.Div(
+            [
+                html.H4("Top 10 causas principales de muerte en Colombia (2019)", style={'marginBottom': '22px'}),
+                dash_table.DataTable(
+                    data=tabla_10.to_dict('records'),
+                    columns=[
+                        {'name': 'Código CIE-10', 'id': 'Código CIE-10'},
+                        {'name': 'Nombre de causa', 'id': 'Nombre de causa'},
+                        {'name': 'Total de casos', 'id': 'Total de casos'},
+                    ],
+                    style_table={'overflowX': 'auto', 'margin': '0 auto', 'borderRadius': '12px', 'boxShadow': '0 2px 5px rgba(0,0,0,0.13)', 'maxWidth': '900px'},
+                    style_cell={'padding': '9px', 'textAlign': 'left'},
+                    style_header={'backgroundColor': '#8CC63F', 'fontWeight': 'bold', 'color': 'white', 'border': '1px solid #8CC63F'},
+                    style_data={'border': '1px solid #8CC63F'}
+                ),
+            ], style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center'}
+        )
     else:
         return html.Div("Seleccione una visualización.")
 
